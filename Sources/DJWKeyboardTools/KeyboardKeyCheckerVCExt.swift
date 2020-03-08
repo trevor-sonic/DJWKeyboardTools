@@ -8,14 +8,14 @@
 
 import UIKit
 
-extension KeyboardKeyCheckerVC {
+public extension KeyboardKeyCheckerVC {
     enum Cmd:Int{
         case space, enter
         case left, right, up, down
         case control, altOption, command, shift
         
         
-        var input:String{
+        public var input:String{
             switch self {
             case .left: return UIKeyCommand.inputLeftArrow
             case .right: return UIKeyCommand.inputRightArrow
@@ -27,7 +27,7 @@ extension KeyboardKeyCheckerVC {
             
             }
         }
-        var modifier:UIKeyModifierFlags{
+        public var modifier:UIKeyModifierFlags{
             switch self {
             case .command:  return [.command]
             case .altOption:return [.alternate]
@@ -36,7 +36,7 @@ extension KeyboardKeyCheckerVC {
             default:return []
             }
         }
-        var desc:String{
+        public var desc:String{
             switch self {
             case .left:         return "◀︎ left"
             case .right:        return "▶︎ right"
@@ -50,7 +50,7 @@ extension KeyboardKeyCheckerVC {
             case .enter:        return "↩︎ return"
             }
         }
-        static var all:[Cmd]{
+        public static var all:[Cmd]{
             var tmp = [Cmd]()
             var i = 0
             while true{

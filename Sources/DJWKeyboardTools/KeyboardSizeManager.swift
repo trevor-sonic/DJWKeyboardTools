@@ -8,25 +8,21 @@
 
 import UIKit
 
-
 // MARK: - Keyboard Size Manager
-protocol KeyboardSizeManagerDelegate:class {
-    
-    
+public protocol KeyboardSizeManagerDelegate:class {
     func setupKeyboardSizer()
     func registerForKeyboardNotifications()
     func deregisterFromKeyboardNotifications()
     func keyboarDidShown(notification: NSNotification)
     func keyboardDidHide(notification: NSNotification)
 }
-class KeyboardSizeManager:NSObject {
+
+open class KeyboardSizeManager:NSObject {
     
     public weak var delegate:KeyboardSizeManagerDelegate?
     
     public var isHardwareKeyboardPresent:Bool = false
     public var keyboardSize:CGSize?
-    
-    
     public var holderWindow:UIWindow?
     public var holderView:UIView?
     public var scrollV:UIScrollView?
@@ -35,10 +31,12 @@ class KeyboardSizeManager:NSObject {
     public var textLabel:UILabel?
     public var aView:UIView?
     
+    private var contentOffsetOriginalYPosition:CGFloat?
+    
     /// Padding when textLabel is used, bottom pading.
     public var labelBottomPadding:CGFloat = 48.0
     
-    func registerForKeyboardNotifications(){
+    open func registerForKeyboardNotifications(){
         //Adding notifies on keyboard show
         NotificationCenter.default.addObserver(self, selector: #selector(keyboarDidShown(notification:)), name: UIResponder.keyboardDidShowNotification, object: nil)
         
@@ -46,7 +44,7 @@ class KeyboardSizeManager:NSObject {
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardDidHide(notification:)), name: UIResponder.keyboardDidHideNotification, object: nil)
     }
     
-    func deregisterFromKeyboardNotifications(){
+    open func deregisterFromKeyboardNotifications(){
         //Removing notifies on keyboard appearing
         NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidShowNotification, object: nil)
         
@@ -57,7 +55,7 @@ class KeyboardSizeManager:NSObject {
     }
     
     
-    @objc func keyboarDidShown(notification: NSNotification){
+    @objc open func keyboarDidShown(notification: NSNotification){
         
         delegate?.keyboarDidShown(notification: notification)
         
@@ -77,11 +75,11 @@ class KeyboardSizeManager:NSObject {
         if ((keyboard.origin.y + keyboard.size.height) > height) {
             isHardwareKeyboardPresent = false
             //                    self.keyboardSize?.height = 0
-            scrollV.contentSize.height = scrollV.bounds.height + keyboardFrame.height
+            ///x scrollV.contentSize.height = scrollV.bounds.height + keyboardFrame.height
         }else{
             isHardwareKeyboardPresent = true
             let toolbarHeight = height - keyboard.origin.y
-            scrollV.contentSize.height = scrollV.bounds.height + toolbarHeight
+            ///x scrollV.contentSize.height = scrollV.bounds.height + toolbarHeight
         }
         
         // This detection is not accurate!!
@@ -93,7 +91,7 @@ class KeyboardSizeManager:NSObject {
         
     }
     
-    @objc func keyboardDidHide(notification: NSNotification){
+    @objc open func keyboardDidHide(notification: NSNotification){
         
         delegate?.keyboardDidHide(notification: notification)
         
@@ -105,8 +103,11 @@ class KeyboardSizeManager:NSObject {
         
         guard let keyboardFrame = keyboardFrame(userInfo: notification.userInfo) else {return}
         
+        guard let contentOffset = contentOffsetOriginalYPosition else {return}
+        
         UIView.animate(withDuration: 0.3) {
-            scrollV.contentSize.height = scrollV.bounds.height
+            ///x scrollV.contentSize.height = scrollV.bounds.height
+            scrollV.contentOffset.y = contentOffset
         }
     }
     
@@ -149,16 +150,21 @@ class KeyboardSizeManager:NSObject {
             
             print("======uilabel=======")
             
-            let posOnWindowY = textLabel!.superview!.convert(label.frame, to: holderWindow).maxY + labelBottomPadding
+            let posOnWindowY = textLabel!.superview!.convert(label.frame, to: holderWindow).origin.y + labelBottomPadding
+            
+            print("Label Y pos: \(String(describing:textLabel!.superview!.convert(textLabel!.frame, to: holderWindow).origin.y))")
+            
+            
             print("posOnWindowY: \(posOnWindowY)")
             
             targetPos = posOnWindowY
             print("targetPos: \(targetPos)\n")
             
+            
         }else if let aView = aView{
             
             print("======aView=======")
-           
+            
             let posOnWindowY = aView.superview!.convert(aView.frame, to: holderWindow).maxY
             print("posOnWindowY: \(posOnWindowY)")
             
@@ -166,29 +172,38 @@ class KeyboardSizeManager:NSObject {
             print("targetPos: \(targetPos)\n")
         }
         
+        print("scrollV.contentOffset: \(String(describing: scrollV.contentOffset))")
         
         guard let visiblePos = targetPos else { return }
         
-            var keyboardCoordY:CGFloat  = 0
-            guard let keyboardSize = keyboardSize else {return}
+        var keyboardCoordY:CGFloat  = 0
+        guard let keyboardSize = keyboardSize else {return}
+        
+        
+        /// keyboard's y position on screen
+        keyboardCoordY = UIScreen.main.bounds.height - keyboardSize.height
+        
+        /// offsetY > 0 is fix the issue that text area scroll till top very first time
+        if visiblePos > keyboardCoordY {
             
-            keyboardCoordY = UIScreen.main.bounds.height - keyboardSize.height
+            print("visiblePos > keyboardCoordY so it is under keyboard.")
             
-            /// offsetY > 0 is fix the issue that text area scroll till top very first time
-            if visiblePos > keyboardCoordY {
-                print("under keyboard \(keyboardCoordY - visiblePos)")
+            /// save original pos. to scroll back
+            contentOffsetOriginalYPosition = scrollV.contentOffset.y
+            
+            let hiddenPartHeight =  visiblePos - keyboardCoordY
+            // print("hiddenPartHeight \(hiddenPartHeight)")
+            
+            /// Scroll distance over the scroll content offset
+            let contentOffset = scrollV.contentOffset.y + hiddenPartHeight
+            
+            UIView.animate(withDuration: 0.5) {
+                scrollV.contentOffset.y = contentOffset
                 
-                var contentOffset = scrollV.contentOffset.y - (keyboardCoordY - visiblePos)
-                
-                if contentOffset > keyboardSize.height{
-                    contentOffset = keyboardSize.height
-                }
-                
-                UIView.animate(withDuration: 0.5) {
-                    scrollV.contentOffset.y = contentOffset
-                    
-                }
             }
+        }else{
+            print("visiblePos < keyboardCoordY so it is visible \(visiblePos), \(keyboardCoordY).")
+        }
         
     }
     
