@@ -7,12 +7,13 @@
 //
 
 import UIKit
+import SnapKit
 
 // MARK: - Keyboard Size Manager
 public protocol KeyboardSizeManagerDelegate:class {
     func setupKeyboardSizer()
     func registerForKeyboardNotifications()
-    func deregisterFromKeyboardNotifications()
+    func unregisterFromKeyboardNotifications()
     func keyboarDidShown(notification: NSNotification)
     func keyboardDidHide(notification: NSNotification)
 }
@@ -30,6 +31,10 @@ open class KeyboardSizeManager:NSObject {
     public var textView:UITextView?
     public var textLabel:UILabel?
     public var aView:UIView?
+    public var autoScrollBack:Bool = true
+    
+    /// TextView bottom constraints is modified by KeyboardSizeManager therfore original distance must be provided.
+    public var originalTextViewBottomConstraintsOffset:CGFloat = -10 // a default value
     
     private var contentOffsetOriginalYPosition:CGFloat?
     
@@ -44,7 +49,7 @@ open class KeyboardSizeManager:NSObject {
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardDidHide(notification:)), name: UIResponder.keyboardDidHideNotification, object: nil)
     }
     
-    open func deregisterFromKeyboardNotifications(){
+    open func unregisterFromKeyboardNotifications(){
         //Removing notifies on keyboard appearing
         NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidShowNotification, object: nil)
         
@@ -78,7 +83,7 @@ open class KeyboardSizeManager:NSObject {
             ///x scrollV.contentSize.height = scrollV.bounds.height + keyboardFrame.height
         }else{
             isHardwareKeyboardPresent = true
-            let toolbarHeight = height - keyboard.origin.y
+            //let toolbarHeight = height - keyboard.origin.y
             ///x scrollV.contentSize.height = scrollV.bounds.height + toolbarHeight
         }
         
@@ -94,30 +99,75 @@ open class KeyboardSizeManager:NSObject {
     @objc open func keyboardDidHide(notification: NSNotification){
         
         delegate?.keyboardDidHide(notification: notification)
+        restoreTextViewSize()
+        
         
         guard
-            let holderView = holderView,
             let scrollV = scrollV,
-            let holderWindow = holderWindow
+            let _ = holderWindow
             else {return}
         
-        guard let keyboardFrame = keyboardFrame(userInfo: notification.userInfo) else {return}
+        guard let _ = keyboardFrame(userInfo: notification.userInfo) else {return}
+        guard let contentOffset = contentOffsetOriginalYPosition, autoScrollBack else {return}
         
-        guard let contentOffset = contentOffsetOriginalYPosition else {return}
         
         UIView.animate(withDuration: 0.3) {
             ///x scrollV.contentSize.height = scrollV.bounds.height
             scrollV.contentOffset.y = contentOffset
         }
+        
+        
     }
     
     internal func keyboardFrame(userInfo:[AnyHashable : Any]?)->CGRect?{
         return userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
     }
+    // MARK: - When TextView is used
+    func restoreTextViewSize(){
+        guard
+            let textView = textView,
+            let superView = textView.superview
+            else {return}
+        
+        UIView.animate(withDuration: 0.2) {
+            textView.snp.updateConstraints({ make in
+                if #available(iOS 11, *) {
+                    make.bottom.equalTo(superView.safeAreaLayoutGuide.snp.bottomMargin)
+                }else{
+                    make.bottom.equalToSuperview().offset(self.originalTextViewBottomConstraintsOffset)
+                }
+            })
+            self.textView?.superview?.layoutIfNeeded()
+        }
+    }
+    
+    /// Lift the bottom of textView over the keyboard
+    func resizeTextView(){
+        guard let keyboardH = keyboardSize?.height else {return}
+        let offset = keyboardH + 8 // some padding
+       
+        guard
+        let textView = textView,
+        let superView = textView.superview
+        else {return}
+        
+        UIView.animate(withDuration: 0.2) {
+            textView.snp.updateConstraints({ make in
+                
+                if #available(iOS 11, *) {
+                    make.bottom.equalTo(superView.safeAreaLayoutGuide.snp.bottomMargin).offset(-offset + 20)
+                }else{
+                    make.bottom.equalToSuperview().offset(-offset)
+                }
+            })
+            superView.layoutIfNeeded()
+        }
+    }
+    
     public func scrollToCursor(){
         
         guard
-            let holderView = holderView,
+            let _ = holderView,
             let scrollV = scrollV,
             let holderWindow = holderWindow
             else {return}
@@ -135,30 +185,38 @@ open class KeyboardSizeManager:NSObject {
             
             // if you want to know its position in textView in points:
             let caretPositionRect = rawText.caretRect(for: cursorPosition)
-            print("caretPositionRectY: \(caretPositionRect.maxY)")
+            print("caretPositionRectY: \(caretPositionRect.origin.y)")
             
             let textOffsetY = rawText.contentOffset.y
             print("rawText offsetY: \(textOffsetY)")
             
-            let posOnWindowY = scrollV.convert(caretPositionRect, to: holderWindow).maxY
+            let posOnWindowY = scrollV.convert(caretPositionRect, to: holderWindow).origin.y
             print("posOnWindowY: \(posOnWindowY)")
-            
+
             targetPos = posOnWindowY - textOffsetY + 40
-            print("targetPos: \(String(describing: targetPos))\n")
+            
+            scrollTheTextViewTo(targetPos: targetPos)
+
+//            print("targetPos: \(String(describing: targetPos))\n")
             
         }else if let label = textLabel{
             
+            guard let superView = label.superview else {
+                print("📛 label.superview is NIL \(#function) in\(self.description)")
+                return
+            }
+            
             print("======uilabel=======")
             
-            let posOnWindowY = textLabel!.superview!.convert(label.frame, to: holderWindow).origin.y + labelBottomPadding
+            let posOnWindowY = superView.convert(label.frame, to: holderWindow).origin.y + labelBottomPadding
             
-            print("Label Y pos: \(String(describing:textLabel!.superview!.convert(textLabel!.frame, to: holderWindow).origin.y))")
+            print("Label Y pos: \(String(describing: superView.convert(label.frame, to: holderWindow).origin.y))")
             
             
             print("posOnWindowY: \(posOnWindowY)")
-            
+            print("scrollV.contentOffset: \(String(describing: scrollV.contentOffset))")
             targetPos = posOnWindowY
-            print("targetPos: \(targetPos)\n")
+            scrollTheScrollViewTo(targetPos: targetPos)
             
             
         }else if let aView = aView{
@@ -169,16 +227,30 @@ open class KeyboardSizeManager:NSObject {
             print("posOnWindowY: \(posOnWindowY)")
             
             targetPos = posOnWindowY
-            print("targetPos: \(targetPos)\n")
+            scrollTheScrollViewTo(targetPos: targetPos)
         }
         
-        print("scrollV.contentOffset: \(String(describing: scrollV.contentOffset))")
         
-        guard let visiblePos = targetPos else { return }
         
+        
+        
+    }
+    private func scrollTheTextViewTo(targetPos:CGFloat?){
+        //print("⚠️ Implement targetPos \(targetPos) \(#function) in \(description)")
+        
+        
+        
+        resizeTextView()
+        
+    }
+    private func scrollTheScrollViewTo(targetPos:CGFloat?){
         var keyboardCoordY:CGFloat  = 0
-        guard let keyboardSize = keyboardSize else {return}
-        
+        guard
+            let keyboardSize = keyboardSize,
+            let visiblePos = targetPos,
+            let scrollV = scrollV
+            else {return}
+      
         
         /// keyboard's y position on screen
         keyboardCoordY = UIScreen.main.bounds.height - keyboardSize.height
@@ -204,7 +276,5 @@ open class KeyboardSizeManager:NSObject {
         }else{
             print("visiblePos < keyboardCoordY so it is visible \(visiblePos), \(keyboardCoordY).")
         }
-        
     }
-    
 }

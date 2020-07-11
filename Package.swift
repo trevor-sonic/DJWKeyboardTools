@@ -21,11 +21,19 @@ let package = Package(
     
     dependencies: [
         .package(path: "../DJWBaseVC/"),
+        
+        ///public
+        .package(url: "https://github.com/SnapKit/SnapKit.git", from: "5.0.0")
     ],
     targets: [
        .target(
             name: "DJWKeyboardTools",
-            dependencies: ["DJWBaseVC"]),
+            dependencies: [
+                "DJWBaseVC",
+                
+                ///public
+                "SnapKit"
+       ]),
         .testTarget(
             name: "DJWKeyboardToolsTests",
             dependencies: ["DJWKeyboardTools"]),
