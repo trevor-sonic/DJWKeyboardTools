@@ -20,7 +20,7 @@ let package = Package(
     ],
     
     dependencies: [
-        .package(path: "../DJWBaseVC/"),
+        .package(url: "https://gitlab.com/trevorsonic/DJWBaseVC.git", from:"1.0.0"),
         
         ///public
         .package(url: "https://github.com/SnapKit/SnapKit.git", from: "5.0.0")

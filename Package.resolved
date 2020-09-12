@@ -2,6 +2,15 @@
   "object": {
     "pins": [
       {
+        "package": "DJWBaseVC",
+        "repositoryURL": "https://gitlab.com/trevorsonic/DJWBaseVC.git",
+        "state": {
+          "branch": null,
+          "revision": "8c121b82f884efe6c9e9b99489156c9661cbb2a7",
+          "version": "1.0.0"
+        }
+      },
+      {
         "package": "SnapKit",
         "repositoryURL": "https://github.com/SnapKit/SnapKit.git",
         "state": {
