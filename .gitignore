@@ -5,3 +5,9 @@
 xcuserdata/
 Package.resolved
 Package.resolved
+Package.resolved
+.build/
+project.xcworkspace
+xcuserdata
+.DS_Store
+.swiftpm
